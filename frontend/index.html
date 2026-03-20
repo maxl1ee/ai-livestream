@@ -102,6 +102,8 @@
             </div>
             <div id="speech-bubble"></div>
             <div id="error-msg"></div>
+            <div id="debug-log" style="position:absolute;bottom:140px;left:8px;right:8px;max-height:150px;overflow-y:auto;background:rgba(0,0,0,0.85);border-radius:8px;padding:8px;font-size:11px;font-family:monospace;color:#0f0;display:none;z-index:99;"></div>
+            <button id="debug-btn" onclick="document.getElementById('debug-log').style.display=document.getElementById('debug-log').style.display==='none'?'block':'none'" style="position:absolute;bottom:140px;right:8px;background:#333;color:#aaa;border:none;border-radius:6px;padding:4px 8px;font-size:10px;z-index:100;cursor:pointer;">🔧</button>
         </div>
         <div id="chat-area">
             <div id="chat-log"></div>
@@ -123,10 +125,14 @@
     (function() {
         const $ = id => document.getElementById(id);
         const errEl = $("error-msg");
-        function showError(msg) {
-            errEl.textContent = msg;
-            errEl.style.display = "block";
-            console.error(msg);
+        const debugLog = $("debug-log");
+        function showError(msg) { errEl.textContent=msg; errEl.style.display="block"; dlog("ERROR: "+msg); }
+        function dlog(msg) {
+            console.log(msg);
+            const d = document.createElement("div");
+            d.textContent = new Date().toLocaleTimeString() + " " + msg;
+            debugLog.appendChild(d);
+            debugLog.scrollTop = debugLog.scrollHeight;
         }
 
         // Verify libraries loaded
@@ -184,8 +190,8 @@
                 model = await PIXI.live2d.Live2DModel.from(MODEL_URL, { autoInteract: false });
                 
                 // Debug: log model dimensions
-                console.log("Model loaded. width:", model.width, "height:", model.height);
-                console.log("Container size:", c.clientWidth, "x", c.clientHeight);
+                dlog("Model loaded. width:", model.width, "height:", model.height);
+                dlog("Container size:", c.clientWidth, "x", c.clientHeight);
                 
                 // Position model to be visible - anchor center-bottom
                 const scaleX = c.clientWidth / model.width * 0.6;
@@ -196,7 +202,7 @@
                 model.x = c.clientWidth / 2;
                 model.y = c.clientHeight / 2;
                 
-                console.log("Scale:", s, "Pos:", model.x, model.y);
+                dlog("Scale:", s, "Pos:", model.x, model.y);
                 
                 pixiApp.stage.addChild(model);
                 $("avatar-loading").style.display = "none";
@@ -206,7 +212,7 @@
                     buildParamCache();
                     if (!paramCache) {
                         // Try alternative paths
-                        console.warn("_model.parameters not found, trying alternatives...");
+                        dlog("WARN: _model.parameters not found, trying alternatives...");
                         tryAlternativeParamAccess();
                     }
                 }, 500);
@@ -231,7 +237,7 @@
                 for (let i = 0; i < params.count; i++) {
                     paramCache[params.ids[i]] = i;
                 }
-                console.log("Param cache (Cubism4):", Object.keys(paramCache).join(", "));
+                dlog("Param cache (Cubism4):", Object.keys(paramCache).join(", "));
                 return;
             }
             
@@ -241,21 +247,21 @@
                 for (let i = 0; i < core._parameterIds.length; i++) {
                     paramCache[core._parameterIds[i]] = i;
                 }
-                console.log("Param cache (alt):", Object.keys(paramCache).join(", "));
+                dlog("Param cache (alt):", Object.keys(paramCache).join(", "));
                 return;
             }
 
-            console.warn("Could not build param cache. Model internals:", Object.keys(core));
+            dlog("WARN: Could not build param cache. Model internals:", Object.keys(core));
         }
         
         function tryAlternativeParamAccess() {
             // Log the model structure to find the right path
             const core = model?.internalModel?.coreModel;
-            if (!core) { console.warn("No coreModel"); return; }
-            console.log("coreModel keys:", Object.keys(core));
-            console.log("coreModel proto:", Object.getOwnPropertyNames(Object.getPrototypeOf(core)));
+            if (!core) { dlog("WARN: No coreModel"); return; }
+            dlog("coreModel keys:", Object.keys(core));
+            dlog("coreModel proto:", Object.getOwnPropertyNames(Object.getPrototypeOf(core)));
             if (core._model) {
-                console.log("_model keys:", Object.keys(core._model));
+                dlog("_model keys:", Object.keys(core._model));
             }
         }
         
