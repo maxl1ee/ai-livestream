@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Livestream Host</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0f;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #app {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 16px;
+        }
+
+        /* Avatar area */
+        #avatar-container {
+            flex: 1;
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 300px;
+        }
+
+        #live2d-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Speech bubble */
+        #speech-bubble {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 16px;
+            line-height: 1.5;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        #speech-bubble.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Status indicator */
+        #status {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        #status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #444;
+            transition: background 0.3s;
+        }
+
+        #status-dot.connected { background: #4ade80; }
+        #status-dot.thinking { background: #facc15; animation: pulse 1s infinite; }
+        #status-dot.speaking { background: #60a5fa; animation: pulse 0.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Debug panel */
+        #debug {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            font-size: 11px;
+            color: #666;
+            text-align: right;
+            font-family: monospace;
+        }
+
+        #debug div { margin-bottom: 2px; }
+
+        /* Emotion badge */
+        #emotion-badge {
+            position: absolute;
+            top: 40px;
+            left: 12px;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+
+        /* Chat area */
+        #chat-area {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #chat-log {
+            height: 120px;
+            overflow-y: auto;
+            padding: 8px 12px;
+            background: #111118;
+            border-radius: 12px;
+            font-size: 13px;
+            scrollbar-width: thin;
+            scrollbar-color: #333 transparent;
+        }
+
+        .chat-msg {
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .chat-msg .user { color: #60a5fa; font-weight: 600; }
+        .chat-msg .ai { color: #c084fc; font-weight: 600; }
+        .chat-msg .text { color: #ccc; }
+        .chat-msg .emotion-tag {
+            font-size: 11px;
+            color: #888;
+            margin-left: 4px;
+        }
+
+        #chat-input-area {
+            display: flex;
+            gap: 8px;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: #111118;
+            border: 1px solid #222;
+            border-radius: 12px;
+            color: #e0e0e0;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #chat-input:focus { border-color: #60a5fa; }
+        #chat-input::placeholder { color: #555; }
+        #chat-input:disabled { opacity: 0.5; }
+
+        #send-btn {
+            padding: 12px 20px;
+            background: #60a5fa;
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #send-btn:hover { background: #93c5fd; }
+        #send-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="avatar-container">
+            <canvas id="live2d-canvas"></canvas>
+
+            <div id="status">
+                <div id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+
+            <div id="emotion-badge">😐</div>
+
+            <div id="debug">
+                <div>LLM: <span id="dbg-llm">-</span>ms</div>
+                <div>TTS: <span id="dbg-tts">-</span>ms</div>
+                <div>FPS: <span id="dbg-fps">-</span></div>
+            </div>
+
+            <div id="speech-bubble"></div>
+        </div>
+
+        <div id="chat-area">
+            <div id="chat-log"></div>
+            <div id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Say something to the host..." autocomplete="off" />
+                <button id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live2D dependencies -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+
+    <script>
+    (function() {
+        // ========== CONFIG ==========
+        const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const WS_URL = `${wsProto}//${location.host}/ws`;
+        const MODEL_URL = "https://cdn.jsdelivr.net/gh/niconi233/Live2dDemo@main/model/hiyori/hiyori_pro_t10.model3.json";
+
+        const EMOTION_EMOJI = {
+            neutral: "😐", happy: "😊", amused: "😂", surprised: "😲",
+            sad: "😢", thinking: "🤔", excited: "🤩", empathetic: "🥺", angry: "😤"
+        };
+
+        // ========== STATE ==========
+        let ws = null;
+        let model = null;
+        let pixiApp = null;
+        let currentExpression = {};
+        let targetExpression = {};
+        let isPlaying = false;
+        let audioContext = null;
+        let analyser = null;
+        let audioQueue = [];
+        let fpsFrames = 0;
+        let fpsTime = performance.now();
+
+        // ========== DOM ==========
+        const canvas = document.getElementById("live2d-canvas");
+        const speechBubble = document.getElementById("speech-bubble");
+        const statusDot = document.getElementById("status-dot");
+        const statusText = document.getElementById("status-text");
+        const emotionBadge = document.getElementById("emotion-badge");
+        const chatLog = document.getElementById("chat-log");
+        const chatInput = document.getElementById("chat-input");
+        const sendBtn = document.getElementById("send-btn");
+        const dbgLlm = document.getElementById("dbg-llm");
+        const dbgTts = document.getElementById("dbg-tts");
+        const dbgFps = document.getElementById("dbg-fps");
+
+        // ========== LIVE2D SETUP ==========
+        async function initLive2D() {
+            const container = document.getElementById("avatar-container");
+
+            pixiApp = new PIXI.Application({
+                view: canvas,
+                resizeTo: container,
+                backgroundAlpha: 0,
+                antialias: true,
+            });
+
+            try {
+                model = await PIXI.live2d.Live2DModel.from(MODEL_URL);
+
+                // Scale and position
+                const scale = Math.min(
+                    container.clientWidth / model.width * 0.6,
+                    container.clientHeight / model.height * 0.8
+                );
+                model.scale.set(scale);
+                model.x = container.clientWidth / 2 - (model.width * scale) / 2;
+                model.y = container.clientHeight - (model.height * scale) + 20;
+
+                pixiApp.stage.addChild(model);
+                console.log("Live2D model loaded");
+
+                // Init current expression from model
+                if (model.internalModel && model.internalModel.coreModel) {
+                    const core = model.internalModel.coreModel;
+                    for (let i = 0; i < core.getParameterCount(); i++) {
+                        const id = core.getParameterId(i);
+                        currentExpression[id] = core.getParameterValueByIndex(i);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load Live2D model:", e);
+                document.getElementById("avatar-container").innerHTML +=
+                    '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#f66;">Failed to load avatar model.<br>Check console for details.</div>';
+            }
+        }
+
+        // ========== EXPRESSION CONTROL ==========
+        function setTargetExpression(params) {
+            targetExpression = { ...targetExpression, ...params };
+        }
+
+        function updateExpression() {
+            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
+
+            const core = model.internalModel.coreModel;
+            const lerpFactor = 0.08; // smooth transition speed
+
+            for (const [param, target] of Object.entries(targetExpression)) {
+                const current = currentExpression[param] || 0;
+                const newVal = current + (target - current) * lerpFactor;
+                currentExpression[param] = newVal;
+
+                // Find param index and set it
+                for (let i = 0; i < core.getParameterCount(); i++) {
+                    if (core.getParameterId(i) === param) {
+                        core.setParameterValueByIndex(i, newVal);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ========== IDLE ANIMATIONS ==========
+        let blinkTimer = 0;
+        let breathTimer = 0;
+        let swayTimer = 0;
+
+        function updateIdle(dt) {
+            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
+            const core = model.internalModel.coreModel;
+
+            // Breathing
+            breathTimer += dt * 2.5;
+            const breathVal = Math.sin(breathTimer) * 0.02;
+            // Subtle body movement with breath
+            for (let i = 0; i < core.getParameterCount(); i++) {
+                if (core.getParameterId(i) === "ParamBreath") {
+                    core.setParameterValueByIndex(i, Math.sin(breathTimer) * 0.5 + 0.5);
+                }
+            }
+
+            // Random blinking
+            blinkTimer -= dt;
+            if (blinkTimer <= 0) {
+                // Trigger blink
+                triggerBlink(core);
+                blinkTimer = 3 + Math.random() * 4; // 3-7 seconds
+            }
+
+            // Subtle head sway
+            swayTimer += dt * 0.5;
+            const swayX = Math.sin(swayTimer) * 2;
+            const swayY = Math.sin(swayTimer * 0.7) * 1;
+            if (!targetExpression["ParamAngleX"]) {
+                for (let i = 0; i < core.getParameterCount(); i++) {
+                    const id = core.getParameterId(i);
+                    if (id === "ParamAngleX") core.setParameterValueByIndex(i, (currentExpression[id] || 0) + swayX);
+                    if (id === "ParamAngleZ") core.setParameterValueByIndex(i, (currentExpression[id] || 0) + swayY);
+                }
+            }
+        }
+
+        let blinkPhase = -1;
+        let blinkProgress = 0;
+
+        function triggerBlink(core) {
+            blinkPhase = 0;
+            blinkProgress = 0;
+        }
+
+        function updateBlink(dt) {
+            if (blinkPhase < 0 || !model?.internalModel?.coreModel) return;
+            const core = model.internalModel.coreModel;
+
+            blinkProgress += dt * 8; // blink speed
+
+            let eyeOpen;
+            if (blinkProgress < 1) {
+                eyeOpen = 1.0 - blinkProgress; // closing
+            } else if (blinkProgress < 2) {
+                eyeOpen = blinkProgress - 1.0; // opening
+            } else {
+                blinkPhase = -1;
+                return;
+            }
+
+            for (let i = 0; i < core.getParameterCount(); i++) {
+                const id = core.getParameterId(i);
+                if (id === "ParamEyeLOpen" || id === "ParamEyeROpen") {
+                    core.setParameterValueByIndex(i, eyeOpen);
+                }
+            }
+        }
+
+        // ========== AUDIO PLAYBACK + LIP SYNC ==========
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                analyser.connect(audioContext.destination);
+            }
+        }
+
+        async function playAudio(base64Audio) {
+            initAudio();
+            isPlaying = true;
+            statusDot.className = "speaking";
+            statusText.textContent = "Speaking";
+
+            try {
+                const binaryStr = atob(base64Audio);
+                const bytes = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+
+                const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(analyser);
+                source.start(0);
+
+                source.onended = () => {
+                    isPlaying = false;
+                    statusDot.className = "connected";
+                    statusText.textContent = "Live";
+                    // Reset mouth
+                    targetExpression["ParamMouthOpenY"] = 0;
+                };
+            } catch (e) {
+                console.error("Audio playback error:", e);
+                isPlaying = false;
+                statusDot.className = "connected";
+                statusText.textContent = "Live";
+            }
+        }
+
+        function updateLipSync() {
+            if (!isPlaying || !analyser || !model?.internalModel?.coreModel) return;
+            const core = model.internalModel.coreModel;
+
+            const data = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(data);
+
+            // Calculate amplitude from low-mid frequencies (voice range)
+            let sum = 0;
+            for (let i = 2; i < 30; i++) {
+                sum += data[i];
+            }
+            const avg = sum / 28;
+            const mouthOpen = Math.min(1.0, avg / 120); // normalize
+
+            // Apply to mouth parameter
+            for (let i = 0; i < core.getParameterCount(); i++) {
+                if (core.getParameterId(i) === "ParamMouthOpenY") {
+                    core.setParameterValueByIndex(i, mouthOpen);
+                }
+            }
+        }
+
+        // ========== RENDER LOOP ==========
+        function startRenderLoop() {
+            let lastTime = performance.now();
+
+            function frame(now) {
+                const dt = (now - lastTime) / 1000;
+                lastTime = now;
+
+                updateExpression();
+                updateIdle(dt);
+                updateBlink(dt);
+                updateLipSync();
+
+                // FPS counter
+                fpsFrames++;
+                if (now - fpsTime >= 1000) {
+                    dbgFps.textContent = fpsFrames;
+                    fpsFrames = 0;
+                    fpsTime = now;
+                }
+
+                requestAnimationFrame(frame);
+            }
+            requestAnimationFrame(frame);
+        }
+
+        // ========== WEBSOCKET ==========
+        function connectWS() {
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                statusDot.className = "connected";
+                statusText.textContent = "Live";
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                console.log("WebSocket connected");
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === "thinking") {
+                    statusDot.className = "thinking";
+                    statusText.textContent = "Thinking...";
+                    emotionBadge.textContent = EMOTION_EMOJI["thinking"];
+                    setTargetExpression(data.expression || {
+                        "ParamBrowLY": -0.3, "ParamBrowRY": 0.5,
+                        "ParamAngleX": 10, "ParamAngleY": 5
+                    });
+                }
+
+                if (data.type === "response") {
+                    // Update UI
+                    emotionBadge.textContent = EMOTION_EMOJI[data.emotion] || "😐";
+                    dbgLlm.textContent = data.latency?.llm_ms || "-";
+                    dbgTts.textContent = data.latency?.tts_ms || "-";
+
+                    // Speech bubble
+                    speechBubble.textContent = data.text;
+                    speechBubble.classList.add("visible");
+                    setTimeout(() => speechBubble.classList.remove("visible"), 8000);
+
+                    // Chat log
+                    addChatMessage("AI", data.text, data.emotion);
+
+                    // Expression
+                    if (data.expression) {
+                        setTargetExpression(data.expression);
+                    }
+
+                    // Play audio
+                    if (data.audio) {
+                        playAudio(data.audio);
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                statusDot.className = "";
+                statusText.textContent = "Disconnected";
+                chatInput.disabled = true;
+                sendBtn.disabled = true;
+                console.log("WebSocket disconnected, reconnecting in 3s...");
+                setTimeout(connectWS, 3000);
+            };
+
+            ws.onerror = (e) => {
+                console.error("WebSocket error:", e);
+            };
+        }
+
+        // ========== CHAT ==========
+        function sendChat() {
+            const text = chatInput.value.trim();
+            if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+            ws.send(JSON.stringify({ type: "chat", text: text }));
+            addChatMessage("You", text);
+            chatInput.value = "";
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // Re-enable after response
+            const enableInput = () => {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.focus();
+                ws.removeEventListener("message", onResponse);
+            };
+            const onResponse = (e) => {
+                const d = JSON.parse(e.data);
+                if (d.type === "response") enableInput();
+            };
+            ws.addEventListener("message", onResponse);
+            // Timeout fallback
+            setTimeout(enableInput, 15000);
+        }
+
+        function addChatMessage(sender, text, emotion) {
+            const div = document.createElement("div");
+            div.className = "chat-msg";
+            const cls = sender === "You" ? "user" : "ai";
+            const emotionTag = emotion ? `<span class="emotion-tag">[${emotion}]</span>` : "";
+            div.innerHTML = `<span class="${cls}">${sender}:</span> <span class="text">${escapeHtml(text)}</span>${emotionTag}`;
+            chatLog.appendChild(div);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // ========== EVENT LISTENERS ==========
+        chatInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendChat();
+            }
+        });
+        sendBtn.addEventListener("click", sendChat);
+
+        // ========== INIT ==========
+        async function init() {
+            await initLive2D();
+            startRenderLoop();
+            connectWS();
+            chatInput.focus();
+        }
+
+        init();
+    })();
+    </script>
+</body>
+</html>
