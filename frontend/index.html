@@ -189,24 +189,30 @@
                 pixiApp.stage.addChild(model);
                 $("avatar-loading").style.display = "none";
 
-                // Log params for debugging
-                if (model.internalModel?.coreModel) {
-                    const core = model.internalModel.coreModel;
-                    const ps = [];
-                    for (let i=0; i<core.getParameterCount(); i++) ps.push(core.getParameterId(i));
-                    console.log("Model params:", ps.join(", "));
-                }
+                // Build parameter cache for fast access
+                buildParamCache();
             } catch(e) {
                 showError("Model load failed: " + e.message);
                 $("avatar-loading").innerHTML = '<div style="color:#f66">Model failed to load</div>';
             }
         }
 
+        // Cache parameter indices for fast lookup
+        let paramCache = null;
+        function buildParamCache() {
+            if (!model?.internalModel?.coreModel?._model) return;
+            const params = model.internalModel.coreModel._model.parameters;
+            paramCache = {};
+            for (let i = 0; i < params.count; i++) {
+                paramCache[params.ids[i]] = i;
+            }
+            console.log("Param cache built:", Object.keys(paramCache).join(", "));
+        }
         function setP(name, val) {
-            if (!model?.internalModel?.coreModel) return;
-            const c = model.internalModel.coreModel;
-            for (let i=0; i<c.getParameterCount(); i++) {
-                if (c.getParameterId(i)===name) { c.setParameterValueByIndex(i,val); return; }
+            if (!paramCache || !model?.internalModel?.coreModel?._model) return;
+            const idx = paramCache[name];
+            if (idx !== undefined) {
+                model.internalModel.coreModel._model.parameters.values[idx] = val;
             }
         }
 
