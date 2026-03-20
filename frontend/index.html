@@ -189,8 +189,15 @@
                 pixiApp.stage.addChild(model);
                 $("avatar-loading").style.display = "none";
 
-                // Build parameter cache for fast access
-                buildParamCache();
+                // Build parameter cache after a short delay to ensure model is fully initialized
+                setTimeout(() => {
+                    buildParamCache();
+                    if (!paramCache) {
+                        // Try alternative paths
+                        console.warn("_model.parameters not found, trying alternatives...");
+                        tryAlternativeParamAccess();
+                    }
+                }, 500);
             } catch(e) {
                 showError("Model load failed: " + e.message);
                 $("avatar-loading").innerHTML = '<div style="color:#f66">Model failed to load</div>';
@@ -199,21 +206,62 @@
 
         // Cache parameter indices for fast lookup
         let paramCache = null;
+        let paramValues = null;
         function buildParamCache() {
-            if (!model?.internalModel?.coreModel?._model) return;
-            const params = model.internalModel.coreModel._model.parameters;
-            paramCache = {};
-            for (let i = 0; i < params.count; i++) {
-                paramCache[params.ids[i]] = i;
+            if (!model?.internalModel?.coreModel) return;
+            const core = model.internalModel.coreModel;
+            
+            // Try Cubism 4 path: _model.parameters
+            if (core._model?.parameters) {
+                const params = core._model.parameters;
+                paramCache = {};
+                paramValues = params.values;
+                for (let i = 0; i < params.count; i++) {
+                    paramCache[params.ids[i]] = i;
+                }
+                console.log("Param cache (Cubism4):", Object.keys(paramCache).join(", "));
+                return;
             }
-            console.log("Param cache built:", Object.keys(paramCache).join(", "));
+            
+            // Try alternative: direct parameter access
+            if (core._parameterIds) {
+                paramCache = {};
+                for (let i = 0; i < core._parameterIds.length; i++) {
+                    paramCache[core._parameterIds[i]] = i;
+                }
+                console.log("Param cache (alt):", Object.keys(paramCache).join(", "));
+                return;
+            }
+
+            console.warn("Could not build param cache. Model internals:", Object.keys(core));
         }
-        function setP(name, val) {
-            if (!paramCache || !model?.internalModel?.coreModel?._model) return;
-            const idx = paramCache[name];
-            if (idx !== undefined) {
-                model.internalModel.coreModel._model.parameters.values[idx] = val;
+        
+        function tryAlternativeParamAccess() {
+            // Log the model structure to find the right path
+            const core = model?.internalModel?.coreModel;
+            if (!core) { console.warn("No coreModel"); return; }
+            console.log("coreModel keys:", Object.keys(core));
+            console.log("coreModel proto:", Object.getOwnPropertyNames(Object.getPrototypeOf(core)));
+            if (core._model) {
+                console.log("_model keys:", Object.keys(core._model));
             }
+        }
+        
+        function setP(name, val) {
+            if (!paramCache) return;
+            const idx = paramCache[name];
+            if (idx === undefined) return;
+            
+            // Method 1: direct values array
+            if (paramValues) {
+                paramValues[idx] = val;
+                return;
+            }
+            
+            // Method 2: setParameterValueById (Cubism 4 high-level API)
+            try {
+                model.internalModel.coreModel.setParameterValueById(name, val);
+            } catch(e) {}
         }
 
         function applyEmotion(em) {
