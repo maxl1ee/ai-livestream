@@ -135,107 +135,106 @@
         </div>
     </div>
 
-    <!-- Live2D SDK -->
+    <!-- Live2D SDK: Cubism 4 core + PixiJS 6 + pixi-live2d-display (cubism4) -->
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.3.1/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
 
     <script>
     (function() {
         const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const WS_URL = `${wsProto}//${location.host}/ws`;
-        const MODEL_URL = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/shizuku/shizuku.model.json";
+        const MODEL_URL = "https://cdn.jsdelivr.net/gh/Live2D/CubismWebSamples/Samples/Resources/Hiyori/Hiyori.model3.json";
 
         const EMOTION_EMOJI = {
             neutral:"😐", happy:"😊", amused:"😂", surprised:"😲",
             sad:"😢", thinking:"🤔", excited:"🤩", empathetic:"🥺", angry:"😤"
         };
 
-        // Emotion -> Live2D parameter map (Shizuku model)
+        // Emotion -> Live2D parameter map (Cubism 4 standard param names)
         const EMOTION_PARAMS = {
             neutral: {},
             happy: {
-                "PARAM_MOUTH_FORM": 1.0,
-                "PARAM_EYE_L_SMILE": 0.7,
-                "PARAM_EYE_R_SMILE": 0.7,
-                "PARAM_BROW_L_Y": 0.3,
-                "PARAM_BROW_R_Y": 0.3
+                "ParamMouthForm": 1.0,
+                "ParamEyeLSmile": 0.7,
+                "ParamEyeRSmile": 0.7,
+                "ParamBrowLY": 0.3,
+                "ParamBrowRY": 0.3
             },
             amused: {
-                "PARAM_MOUTH_FORM": 1.0,
-                "PARAM_MOUTH_OPEN_Y": 0.4,
-                "PARAM_EYE_L_SMILE": 0.9,
-                "PARAM_EYE_R_SMILE": 0.9,
-                "PARAM_ANGLE_Z": -5
+                "ParamMouthForm": 1.0,
+                "ParamMouthOpenY": 0.4,
+                "ParamEyeLSmile": 0.9,
+                "ParamEyeRSmile": 0.9,
+                "ParamAngleZ": -5
             },
             surprised: {
-                "PARAM_BROW_L_Y": 1.0,
-                "PARAM_BROW_R_Y": 1.0,
-                "PARAM_EYE_L_OPEN": 1.3,
-                "PARAM_EYE_R_OPEN": 1.3,
-                "PARAM_MOUTH_OPEN_Y": 0.6,
-                "PARAM_MOUTH_FORM": -0.3
+                "ParamBrowLY": 1.0,
+                "ParamBrowRY": 1.0,
+                "ParamEyeLOpen": 1.3,
+                "ParamEyeROpen": 1.3,
+                "ParamMouthOpenY": 0.6,
+                "ParamMouthForm": -0.3
             },
             sad: {
-                "PARAM_BROW_L_Y": -0.8,
-                "PARAM_BROW_R_Y": -0.8,
-                "PARAM_MOUTH_FORM": -0.6,
-                "PARAM_EYE_L_OPEN": 0.6,
-                "PARAM_EYE_R_OPEN": 0.6,
-                "PARAM_ANGLE_Y": -5
+                "ParamBrowLY": -0.8,
+                "ParamBrowRY": -0.8,
+                "ParamMouthForm": -0.6,
+                "ParamEyeLOpen": 0.6,
+                "ParamEyeROpen": 0.6,
+                "ParamAngleY": -5
             },
             thinking: {
-                "PARAM_BROW_L_Y": -0.3,
-                "PARAM_BROW_R_Y": 0.5,
-                "PARAM_EYE_L_OPEN": 0.7,
-                "PARAM_EYE_R_OPEN": 0.8,
-                "PARAM_ANGLE_X": 15,
-                "PARAM_ANGLE_Y": 5,
-                "PARAM_MOUTH_FORM": 0.1
+                "ParamBrowLY": -0.3,
+                "ParamBrowRY": 0.5,
+                "ParamEyeLOpen": 0.7,
+                "ParamEyeROpen": 0.8,
+                "ParamAngleX": 15,
+                "ParamAngleY": 5,
+                "ParamMouthForm": 0.1
             },
             excited: {
-                "PARAM_MOUTH_FORM": 1.0,
-                "PARAM_MOUTH_OPEN_Y": 0.5,
-                "PARAM_EYE_L_SMILE": 1.0,
-                "PARAM_EYE_R_SMILE": 1.0,
-                "PARAM_BROW_L_Y": 0.8,
-                "PARAM_BROW_R_Y": 0.8,
-                "PARAM_BODY_ANGLE_X": 3
+                "ParamMouthForm": 1.0,
+                "ParamMouthOpenY": 0.5,
+                "ParamEyeLSmile": 1.0,
+                "ParamEyeRSmile": 1.0,
+                "ParamBrowLY": 0.8,
+                "ParamBrowRY": 0.8,
+                "ParamBodyAngleX": 3
             },
             empathetic: {
-                "PARAM_BROW_L_Y": -0.5,
-                "PARAM_BROW_R_Y": -0.3,
-                "PARAM_MOUTH_FORM": 0.3,
-                "PARAM_EYE_L_OPEN": 0.7,
-                "PARAM_EYE_R_OPEN": 0.7,
-                "PARAM_ANGLE_X": -5
+                "ParamBrowLY": -0.5,
+                "ParamBrowRY": -0.3,
+                "ParamMouthForm": 0.3,
+                "ParamEyeLOpen": 0.7,
+                "ParamEyeROpen": 0.7,
+                "ParamAngleX": -5
             },
             angry: {
-                "PARAM_BROW_L_Y": -1.0,
-                "PARAM_BROW_R_Y": -1.0,
-                "PARAM_MOUTH_FORM": -0.8,
-                "PARAM_EYE_L_OPEN": 0.9,
-                "PARAM_EYE_R_OPEN": 0.9,
-                "PARAM_ANGLE_X": -3
+                "ParamBrowLY": -1.0,
+                "ParamBrowRY": -1.0,
+                "ParamMouthForm": -0.8,
+                "ParamEyeLOpen": 0.9,
+                "ParamEyeROpen": 0.9,
+                "ParamAngleX": -3
             }
         };
 
-        // All controllable params and their defaults
         const ALL_PARAMS = [
-            "PARAM_MOUTH_FORM","PARAM_MOUTH_OPEN_Y",
-            "PARAM_EYE_L_OPEN","PARAM_EYE_R_OPEN",
-            "PARAM_EYE_L_SMILE","PARAM_EYE_R_SMILE",
-            "PARAM_BROW_L_Y","PARAM_BROW_R_Y",
-            "PARAM_ANGLE_X","PARAM_ANGLE_Y","PARAM_ANGLE_Z",
-            "PARAM_BODY_ANGLE_X"
+            "ParamMouthForm","ParamMouthOpenY",
+            "ParamEyeLOpen","ParamEyeROpen",
+            "ParamEyeLSmile","ParamEyeRSmile",
+            "ParamBrowLY","ParamBrowRY",
+            "ParamAngleX","ParamAngleY","ParamAngleZ",
+            "ParamBodyAngleX"
         ];
         const DEFAULTS = {
-            "PARAM_MOUTH_FORM": 0, "PARAM_MOUTH_OPEN_Y": 0,
-            "PARAM_EYE_L_OPEN": 1, "PARAM_EYE_R_OPEN": 1,
-            "PARAM_EYE_L_SMILE": 0, "PARAM_EYE_R_SMILE": 0,
-            "PARAM_BROW_L_Y": 0, "PARAM_BROW_R_Y": 0,
-            "PARAM_ANGLE_X": 0, "PARAM_ANGLE_Y": 0, "PARAM_ANGLE_Z": 0,
-            "PARAM_BODY_ANGLE_X": 0
+            "ParamMouthForm": 0, "ParamMouthOpenY": 0,
+            "ParamEyeLOpen": 1, "ParamEyeROpen": 1,
+            "ParamEyeLSmile": 0, "ParamEyeRSmile": 0,
+            "ParamBrowLY": 0, "ParamBrowRY": 0,
+            "ParamAngleX": 0, "ParamAngleY": 0, "ParamAngleZ": 0,
+            "ParamBodyAngleX": 0
         };
 
         let ws = null, model = null, pixiApp = null;
@@ -264,7 +263,7 @@
             });
 
             try {
-                model = await PIXI.live2d.Live2DModel.from(MODEL_URL);
+                model = await PIXI.live2d.Live2DModel.from(MODEL_URL, { autoInteract: false });
                 const scale = Math.min(
                     container.clientWidth / model.width * 0.7,
                     container.clientHeight / model.height * 0.9
@@ -276,15 +275,18 @@
                 loadingEl.style.display = "none";
                 console.log("Live2D model loaded successfully");
 
-                // Log available params for debugging
+                // Log available params
                 if (model.internalModel?.coreModel) {
                     const core = model.internalModel.coreModel;
                     const params = [];
                     for (let i = 0; i < core.getParameterCount(); i++) {
                         params.push(core.getParameterId(i));
                     }
-                    console.log("Model params:", params);
+                    console.log("Available params:", params.join(", "));
                 }
+
+                // Also try to log via motion manager
+                console.log("Model expressions:", model.internalModel?.motionManager);
             } catch(e) {
                 console.error("Live2D load error:", e);
                 loadingEl.innerHTML = '<div style="color:#f66">Failed to load avatar.<br>' + e.message + '</div>';
@@ -309,14 +311,6 @@
             const params = EMOTION_PARAMS[emotion] || {};
             // Start from defaults, overlay emotion params
             targetParams = {...DEFAULTS, ...params};
-
-            // Also try built-in expressions
-            if (model?.internalModel) {
-                const exprMap = {happy:"f02", amused:"f03", surprised:"f04", sad:"f01"};
-                if (exprMap[emotion]) {
-                    try { model.expression(exprMap[emotion]); } catch(e) {}
-                }
-            }
         }
 
         function updateExpressions(dt) {
@@ -336,7 +330,7 @@
 
             // Breathing
             breathTimer += dt * 2.5;
-            setParam("PARAM_BREATH", Math.sin(breathTimer) * 0.5 + 0.5);
+            setParam("ParamBreath", Math.sin(breathTimer) * 0.5 + 0.5);
 
             // Blinking
             blinkTimer -= dt;
@@ -350,15 +344,15 @@
                 if (blinkProgress < 1) eyeVal = 1 - blinkProgress;
                 else if (blinkProgress < 2) eyeVal = blinkProgress - 1;
                 else { blinkPhase = -1; eyeVal = 1; }
-                setParam("PARAM_EYE_L_OPEN", eyeVal * (currentParams["PARAM_EYE_L_OPEN"] ?? 1));
-                setParam("PARAM_EYE_R_OPEN", eyeVal * (currentParams["PARAM_EYE_R_OPEN"] ?? 1));
+                setParam("ParamEyeLOpen", eyeVal * (currentParams["ParamEyeLOpen"] ?? 1));
+                setParam("ParamEyeROpen", eyeVal * (currentParams["ParamEyeROpen"] ?? 1));
             }
 
             // Head sway (only when not in a strong emotion)
             if (currentEmotion === "neutral") {
                 swayTimer += dt * 0.4;
-                setParam("PARAM_ANGLE_X", currentParams["PARAM_ANGLE_X"] + Math.sin(swayTimer) * 3);
-                setParam("PARAM_ANGLE_Z", currentParams["PARAM_ANGLE_Z"] + Math.sin(swayTimer * 0.7) * 2);
+                setParam("ParamAngleX", currentParams["ParamAngleX"] + Math.sin(swayTimer) * 3);
+                setParam("ParamAngleZ", currentParams["ParamAngleZ"] + Math.sin(swayTimer * 0.7) * 2);
             }
         }
 
@@ -392,7 +386,7 @@
                     isPlaying = false;
                     $("status-dot").className = "connected";
                     $("status-text").textContent = "Live";
-                    targetParams["PARAM_MOUTH_OPEN_Y"] = 0;
+                    targetParams["ParamMouthOpenY"] = 0;
                 };
             } catch(e) {
                 console.error("Audio error:", e);
@@ -409,7 +403,7 @@
             let sum = 0;
             for (let i = 2; i < 30; i++) sum += data[i];
             const mouthOpen = Math.min(1.0, (sum / 28) / 100);
-            setParam("PARAM_MOUTH_OPEN_Y", mouthOpen);
+            setParam("ParamMouthOpenY", mouthOpen);
         }
 
         // ===== RENDER LOOP =====
