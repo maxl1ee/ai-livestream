@@ -114,19 +114,15 @@
         </div>
     </div>
 
-    <!-- Step 1: Cubism 4 Core runtime -->
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-    <!-- Step 2: PixiJS v6 (required by pixi-live2d-display) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
-    <!-- Step 3: pixi-live2d-display cubism4 bundle -->
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
 
     <script>
     (function() {
         const $ = id => document.getElementById(id);
-        const errEl = $("error-msg");
         const debugLog = $("debug-log");
-        function showError(msg) { errEl.textContent=msg; errEl.style.display="block"; dlog("ERROR: "+msg); }
+        function showError(msg) { $("error-msg").textContent=msg; $("error-msg").style.display="block"; dlog("ERROR: "+msg); }
         function dlog(msg) {
             console.log(msg);
             const d = document.createElement("div");
@@ -135,10 +131,10 @@
             debugLog.scrollTop = debugLog.scrollHeight;
         }
 
-        // Verify libraries loaded
         if (!window.PIXI) return showError("PixiJS failed to load");
         if (!window.Live2DCubismCore) return showError("CubismCore failed to load");
         if (!window.PIXI.live2d) return showError("pixi-live2d-display failed to load");
+        dlog("All libraries loaded OK");
 
         const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const WS_URL = `${wsProto}//${location.host}/ws`;
@@ -149,7 +145,6 @@
             sad:"😢", thinking:"🤔", excited:"🤩", empathetic:"🥺", angry:"😤"
         };
 
-        // Cubism4 standard parameter names
         const EMOTION_PARAMS = {
             neutral: {},
             happy: { "ParamMouthForm":1,"ParamEyeLSmile":0.7,"ParamEyeRSmile":0.7,"ParamBrowLY":0.3,"ParamBrowRY":0.3 },
@@ -162,15 +157,18 @@
             angry: { "ParamBrowLY":-1,"ParamBrowRY":-1,"ParamMouthForm":-0.8,"ParamEyeLOpen":0.9,"ParamEyeROpen":0.9,"ParamAngleX":-3 }
         };
 
-        const CTRL = ["ParamMouthForm","ParamMouthOpenY","ParamEyeLOpen","ParamEyeROpen","ParamEyeLSmile","ParamEyeRSmile","ParamBrowLY","ParamBrowRY","ParamAngleX","ParamAngleY","ParamAngleZ","ParamBodyAngleX"];
-        const DEFS = {"ParamMouthForm":0,"ParamMouthOpenY":0,"ParamEyeLOpen":1,"ParamEyeROpen":1,"ParamEyeLSmile":0,"ParamEyeRSmile":0,"ParamBrowLY":0,"ParamBrowRY":0,"ParamAngleX":0,"ParamAngleY":0,"ParamAngleZ":0,"ParamBodyAngleX":0};
+        const CTRL = ["ParamMouthForm","ParamMouthOpenY","ParamEyeLOpen","ParamEyeROpen","ParamEyeLSmile","ParamEyeRSmile","ParamBrowLY","ParamBrowRY","ParamAngleX","ParamAngleY","ParamAngleZ","ParamBodyAngleX","ParamBreath"];
+        const DEFS = {"ParamMouthForm":0,"ParamMouthOpenY":0,"ParamEyeLOpen":1,"ParamEyeROpen":1,"ParamEyeLSmile":0,"ParamEyeRSmile":0,"ParamBrowLY":0,"ParamBrowRY":0,"ParamAngleX":0,"ParamAngleY":0,"ParamAngleZ":0,"ParamBodyAngleX":0,"ParamBreath":0};
 
         let ws=null, model=null, pixiApp=null;
+        let paramCache=null, paramValues=null;
         let curParams={...DEFS}, tgtParams={...DEFS};
+        let forcedParams = {}; // params to force every frame AFTER motion manager
         let isPlaying=false, audioCtx=null, analyser=null;
         let fpsN=0, fpsT=performance.now();
         let blinkTimer=3+Math.random()*4, blinkPhase=-1, blinkProg=0;
         let breathT=0, swayT=0, curEmotion="neutral";
+        let lastFrameTime = performance.now();
 
         // ===== LIVE2D =====
         async function initLive2D() {
@@ -182,149 +180,160 @@
                     backgroundAlpha: 0,
                     antialias: true,
                 });
+                dlog("PIXI app created");
             } catch(e) { return showError("PIXI.Application failed: " + e.message); }
 
             $("avatar-loading").innerHTML = '<div class="spinner"></div>Loading model...';
 
             try {
                 model = await PIXI.live2d.Live2DModel.from(MODEL_URL, { autoInteract: false });
-                
-                // Debug: log model dimensions
-                dlog("Model loaded. width:", model.width, "height:", model.height);
-                dlog("Container size:", c.clientWidth, "x", c.clientHeight);
-                
-                // Position model to be visible - anchor center-bottom
+                dlog("Model loaded: " + model.width + "x" + model.height);
+
                 const scaleX = c.clientWidth / model.width * 0.6;
                 const scaleY = c.clientHeight / model.height * 0.85;
                 const s = Math.min(scaleX, scaleY);
                 model.scale.set(s);
-                model.anchor?.set(0.5, 0.5);
                 model.x = c.clientWidth / 2;
                 model.y = c.clientHeight / 2;
-                
-                dlog("Scale:", s, "Pos:", model.x, model.y);
-                
+                model.anchor?.set(0.5, 0.5);
+
                 pixiApp.stage.addChild(model);
                 $("avatar-loading").style.display = "none";
+                dlog("Model added to stage, scale=" + s.toFixed(3));
 
-                // Build parameter cache after a short delay to ensure model is fully initialized
-                setTimeout(() => {
-                    buildParamCache();
-                    if (!paramCache) {
-                        // Try alternative paths
-                        dlog("WARN: _model.parameters not found, trying alternatives...");
-                        tryAlternativeParamAccess();
-                    }
-                }, 500);
+                // Build param cache
+                buildParamCache();
+
+                // KEY FIX: Patch coreModel.update() to inject our params
+                // AFTER motion manager runs but BEFORE the model renders
+                patchCoreModelUpdate();
+
+                // Start our animation logic on PIXI ticker (synced with render)
+                pixiApp.ticker.add(onTick);
+                dlog("Ticker started");
+
             } catch(e) {
                 showError("Model load failed: " + e.message);
                 $("avatar-loading").innerHTML = '<div style="color:#f66">Model failed to load</div>';
             }
         }
 
-        // Cache parameter indices for fast lookup
-        let paramCache = null;
-        let paramValues = null;
         function buildParamCache() {
-            if (!model?.internalModel?.coreModel) return;
+            if (!model?.internalModel?.coreModel) {
+                dlog("WARN: no coreModel");
+                return;
+            }
             const core = model.internalModel.coreModel;
-            
-            // Try Cubism 4 path: _model.parameters
+
+            // Cubism4: _model.parameters
             if (core._model?.parameters) {
                 const params = core._model.parameters;
                 paramCache = {};
-                paramValues = params.values;
+                paramValues = params.values; // Float32Array reference
                 for (let i = 0; i < params.count; i++) {
                     paramCache[params.ids[i]] = i;
                 }
-                dlog("Param cache (Cubism4):", Object.keys(paramCache).join(", "));
+                dlog("Param cache OK (" + params.count + " params): " + Object.keys(paramCache).slice(0,8).join(", ") + "...");
                 return;
             }
-            
-            // Try alternative: direct parameter access
-            if (core._parameterIds) {
-                paramCache = {};
-                for (let i = 0; i < core._parameterIds.length; i++) {
-                    paramCache[core._parameterIds[i]] = i;
+
+            dlog("WARN: _model.parameters not found");
+            dlog("coreModel keys: " + Object.keys(core).join(", "));
+            if (core._model) dlog("_model keys: " + Object.keys(core._model).join(", "));
+        }
+
+        // Patch the coreModel.update() to inject our forced params
+        // This runs AFTER motion manager + physics but BEFORE rendering
+        function patchCoreModelUpdate() {
+            if (!model?.internalModel?.coreModel) return;
+            const core = model.internalModel.coreModel;
+            const originalUpdate = core.update.bind(core);
+
+            core.update = function() {
+                // Inject our forced parameter values right before the model commits
+                if (paramCache && paramValues) {
+                    for (const [name, val] of Object.entries(forcedParams)) {
+                        const idx = paramCache[name];
+                        if (idx !== undefined) {
+                            paramValues[idx] = val;
+                        }
+                    }
                 }
-                dlog("Param cache (alt):", Object.keys(paramCache).join(", "));
-                return;
-            }
-
-            dlog("WARN: Could not build param cache. Model internals:", Object.keys(core));
-        }
-        
-        function tryAlternativeParamAccess() {
-            // Log the model structure to find the right path
-            const core = model?.internalModel?.coreModel;
-            if (!core) { dlog("WARN: No coreModel"); return; }
-            dlog("coreModel keys:", Object.keys(core));
-            dlog("coreModel proto:", Object.getOwnPropertyNames(Object.getPrototypeOf(core)));
-            if (core._model) {
-                dlog("_model keys:", Object.keys(core._model));
-            }
-        }
-        
-        function setP(name, val) {
-            if (!paramCache) return;
-            const idx = paramCache[name];
-            if (idx === undefined) return;
-            
-            // Method 1: direct values array
-            if (paramValues) {
-                paramValues[idx] = val;
-                return;
-            }
-            
-            // Method 2: setParameterValueById (Cubism 4 high-level API)
-            try {
-                model.internalModel.coreModel.setParameterValueById(name, val);
-            } catch(e) {}
+                // Now let the original update commit these values
+                originalUpdate();
+            };
+            dlog("Patched coreModel.update() for param injection");
         }
 
+        // Called every frame by PIXI.Ticker
+        function onTick(deltaFrame) {
+            const now = performance.now();
+            const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = now;
+
+            // Calculate what params we want
+            updateExpressionTargets(dt);
+            updateIdle(dt);
+            updateLipSync();
+
+            // Build the forcedParams object that gets injected in patchCoreModelUpdate
+            forcedParams = {...curParams};
+
+            // FPS
+            fpsN++;
+            if (now - fpsT >= 1000) { $("dbg-fps").textContent = fpsN; fpsN = 0; fpsT = now; }
+        }
+
+        // ===== EXPRESSION =====
         function applyEmotion(em) {
             curEmotion = em;
             tgtParams = {...DEFS, ...(EMOTION_PARAMS[em]||{})};
+            dlog("Emotion → " + em);
         }
 
-        function updateExpr(dt) {
-            if (!model?.internalModel?.coreModel) return;
-            const f = 1 - Math.pow(0.05, dt);
+        function updateExpressionTargets(dt) {
+            const f = 1 - Math.pow(0.02, dt); // smooth lerp
             for (const p of CTRL) {
-                const t = tgtParams[p]??DEFS[p], c = curParams[p]??DEFS[p];
-                curParams[p] = c + (t-c)*f;
-                setP(p, curParams[p]);
+                const t = tgtParams[p] ?? DEFS[p];
+                const c = curParams[p] ?? DEFS[p];
+                curParams[p] = c + (t - c) * f;
             }
         }
 
+        // ===== IDLE =====
         function updateIdle(dt) {
-            if (!model?.internalModel?.coreModel) return;
-            breathT += dt*2.5;
-            setP("ParamBreath", Math.sin(breathT)*0.5+0.5);
+            // Breathing
+            breathT += dt * 2.5;
+            curParams["ParamBreath"] = Math.sin(breathT) * 0.5 + 0.5;
 
+            // Blinking
             blinkTimer -= dt;
-            if (blinkTimer<=0 && blinkPhase<0) { blinkPhase=0; blinkProg=0; blinkTimer=2.5+Math.random()*4; }
-            if (blinkPhase>=0) {
-                blinkProg += dt*10;
+            if (blinkTimer <= 0 && blinkPhase < 0) {
+                blinkPhase = 0; blinkProg = 0;
+                blinkTimer = 2.5 + Math.random() * 4;
+            }
+            if (blinkPhase >= 0) {
+                blinkProg += dt * 10;
                 let v = 1;
-                if (blinkProg<1) v = 1-blinkProg;
-                else if (blinkProg<2) v = blinkProg-1;
-                else { blinkPhase=-1; v=1; }
-                setP("ParamEyeLOpen", v*(curParams["ParamEyeLOpen"]??1));
-                setP("ParamEyeROpen", v*(curParams["ParamEyeROpen"]??1));
+                if (blinkProg < 1) v = 1 - blinkProg;
+                else if (blinkProg < 2) v = blinkProg - 1;
+                else { blinkPhase = -1; v = 1; }
+                curParams["ParamEyeLOpen"] = v * (tgtParams["ParamEyeLOpen"] ?? 1);
+                curParams["ParamEyeROpen"] = v * (tgtParams["ParamEyeROpen"] ?? 1);
             }
 
-            if (curEmotion==="neutral") {
-                swayT += dt*0.4;
-                setP("ParamAngleX", curParams["ParamAngleX"]+Math.sin(swayT)*3);
-                setP("ParamAngleZ", curParams["ParamAngleZ"]+Math.sin(swayT*0.7)*2);
+            // Subtle head sway when neutral
+            if (curEmotion === "neutral") {
+                swayT += dt * 0.4;
+                curParams["ParamAngleX"] = (tgtParams["ParamAngleX"] ?? 0) + Math.sin(swayT) * 3;
+                curParams["ParamAngleZ"] = (tgtParams["ParamAngleZ"] ?? 0) + Math.sin(swayT * 0.7) * 2;
             }
         }
 
         // ===== AUDIO + LIP SYNC =====
         function initAudio() {
             if (!audioCtx) {
-                audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioCtx.createAnalyser();
                 analyser.fftSize = 256;
                 analyser.connect(audioCtx.destination);
@@ -333,128 +342,123 @@
 
         async function playAudio(b64) {
             initAudio();
-            if (audioCtx.state==='suspended') await audioCtx.resume();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
             isPlaying = true;
             $("status-dot").className = "dot speaking";
             $("status-text").textContent = "Speaking";
             try {
                 const bin = atob(b64);
                 const buf = new Uint8Array(bin.length);
-                for (let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+                for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
                 const ab = await audioCtx.decodeAudioData(buf.buffer);
                 const src = audioCtx.createBufferSource();
-                src.buffer = ab; src.connect(analyser); src.start(0);
+                src.buffer = ab;
+                src.connect(analyser);
+                src.start(0);
                 src.onended = () => {
                     isPlaying = false;
                     $("status-dot").className = "dot connected";
                     $("status-text").textContent = "Live";
                     tgtParams["ParamMouthOpenY"] = 0;
+                    dlog("Audio finished");
                 };
+                dlog("Audio playing");
             } catch(e) {
-                console.error("Audio err:", e);
+                dlog("Audio error: " + e.message);
                 isPlaying = false;
                 $("status-dot").className = "dot connected";
                 $("status-text").textContent = "Live";
             }
         }
 
-        function updateLip() {
-            if (!isPlaying||!analyser) return;
-            const d = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(d);
-            let s=0; for (let i=2;i<30;i++) s+=d[i];
-            setP("ParamMouthOpenY", Math.min(1,(s/28)/100));
+        function updateLipSync() {
+            if (!isPlaying || !analyser) return;
+            const data = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(data);
+            let sum = 0;
+            for (let i = 2; i < 30; i++) sum += data[i];
+            const mouthOpen = Math.min(1.0, (sum / 28) / 100);
+            curParams["ParamMouthOpenY"] = Math.max(curParams["ParamMouthOpenY"] || 0, mouthOpen);
         }
-
-        // ===== RENDER LOOP =====
-        !function loop() {
-            let last = performance.now();
-            (function frame(now) {
-                const dt = Math.min((now-last)/1000, 0.1); last=now;
-                updateExpr(dt); updateIdle(dt); updateLip();
-                fpsN++;
-                if (now-fpsT>=1000) { $("dbg-fps").textContent=fpsN; fpsN=0; fpsT=now; }
-                requestAnimationFrame(frame);
-            })(performance.now());
-        }();
 
         // ===== WEBSOCKET =====
         function connectWS() {
-            dlog("Connecting WS to " + WS_URL);
+            dlog("WS connecting to " + WS_URL);
             ws = new WebSocket(WS_URL);
             ws.onopen = () => {
-                dlog("WS connected!");
-                $("status-dot").className="dot connected"; $("status-text").textContent="Live";
-                $("chat-input").disabled=false; $("send-btn").disabled=false;
+                dlog("WS connected");
+                $("status-dot").className = "dot connected";
+                $("status-text").textContent = "Live";
+                $("chat-input").disabled = false;
+                $("send-btn").disabled = false;
             };
             ws.onmessage = e => {
                 const d = JSON.parse(e.data);
-                dlog("WS msg: type=" + d.type + " emotion=" + (d.emotion||"") + " text=" + (d.text||"").substring(0,30));
-                if (d.type==="thinking") {
-                    $("status-dot").className="dot thinking"; $("status-text").textContent="Thinking...";
-                    $("emotion-badge").textContent="🤔"; applyEmotion("thinking");
+                dlog("WS recv: " + d.type + (d.emotion ? " [" + d.emotion + "]" : "") + (d.text ? " " + d.text.substring(0,30) : ""));
+                if (d.type === "thinking") {
+                    $("status-dot").className = "dot thinking";
+                    $("status-text").textContent = "Thinking...";
+                    $("emotion-badge").textContent = "🤔";
+                    applyEmotion("thinking");
                 }
-                if (d.type==="response") {
-                    $("emotion-badge").textContent = EMOJIS[d.emotion]||"😐";
-                    $("dbg-llm").textContent = d.latency?.llm_ms||"-";
-                    $("dbg-tts").textContent = d.latency?.tts_ms||"-";
+                if (d.type === "response") {
+                    $("emotion-badge").textContent = EMOJIS[d.emotion] || "😐";
+                    $("dbg-llm").textContent = d.latency?.llm_ms || "-";
+                    $("dbg-tts").textContent = d.latency?.tts_ms || "-";
                     $("speech-bubble").textContent = d.text;
                     $("speech-bubble").classList.add("visible");
-                    setTimeout(()=>$("speech-bubble").classList.remove("visible"),8000);
-                    addMsg("AI",d.text,d.emotion);
-                    applyEmotion(d.emotion||"neutral");
-                    if (d.audio) {
-                        dlog("Playing audio (" + d.audio.length + " chars)");
-                        playAudio(d.audio);
-                    }
+                    setTimeout(() => $("speech-bubble").classList.remove("visible"), 8000);
+                    addMsg("AI", d.text, d.emotion);
+                    applyEmotion(d.emotion || "neutral");
+                    if (d.audio) playAudio(d.audio);
                 }
             };
             ws.onclose = () => {
-                dlog("WS disconnected, reconnecting in 3s...");
-                $("status-dot").className="dot"; $("status-text").textContent="Reconnecting...";
-                $("chat-input").disabled=true; $("send-btn").disabled=true;
-                setTimeout(connectWS,3000);
+                dlog("WS closed, retry in 3s");
+                $("status-dot").className = "dot";
+                $("status-text").textContent = "Reconnecting...";
+                $("chat-input").disabled = true;
+                $("send-btn").disabled = true;
+                setTimeout(connectWS, 3000);
             };
-            ws.onerror = (e) => {
-                dlog("WS error: " + e.type);
-            };
+            ws.onerror = () => dlog("WS error");
         }
 
         // ===== CHAT =====
         function sendChat() {
-            const t=$("chat-input").value.trim();
-            dlog("sendChat called, text='" + t + "', ws.readyState=" + (ws?.readyState));
-            if (!t||!ws||ws.readyState!==1) {
-                dlog("sendChat aborted: empty=" + !t + " ws=" + !!ws + " state=" + ws?.readyState);
-                return;
-            }
-            ws.send(JSON.stringify({type:"chat",text:t}));
-            dlog("Sent to WS: " + t);
-            addMsg("You",t);
-            $("chat-input").value="";
-            $("chat-input").disabled=true; $("send-btn").disabled=true;
-            const unlock=()=>{
-                $("chat-input").disabled=false;$("send-btn").disabled=false;$("chat-input").focus();
-                ws.removeEventListener("message",onR);
-                dlog("Input unlocked");
+            const t = $("chat-input").value.trim();
+            if (!t || !ws || ws.readyState !== 1) return;
+            ws.send(JSON.stringify({ type: "chat", text: t }));
+            dlog("Sent: " + t);
+            addMsg("You", t);
+            $("chat-input").value = "";
+            $("chat-input").disabled = true;
+            $("send-btn").disabled = true;
+            const unlock = () => {
+                $("chat-input").disabled = false;
+                $("send-btn").disabled = false;
+                $("chat-input").focus();
+                ws.removeEventListener("message", onR);
             };
-            const onR=e=>{if(JSON.parse(e.data).type==="response")unlock();};
-            ws.addEventListener("message",onR);
-            setTimeout(unlock,15000);
-        }
-        function addMsg(who,text,em) {
-            const d=document.createElement("div"); d.className="chat-msg";
-            const c=who==="You"?"user":"ai";
-            const tag=em?`<span class="etag">[${em}]</span>`:"";
-            d.innerHTML=`<span class="${c}">${who}:</span> <span class="text">${text.replace(/</g,"&lt;")}</span>${tag}`;
-            $("chat-log").appendChild(d); $("chat-log").scrollTop=$("chat-log").scrollHeight;
+            const onR = e => { if (JSON.parse(e.data).type === "response") unlock(); };
+            ws.addEventListener("message", onR);
+            setTimeout(unlock, 15000);
         }
 
-        $("chat-input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}});
-        $("send-btn").addEventListener("click",sendChat);
+        function addMsg(who, text, em) {
+            const d = document.createElement("div"); d.className = "chat-msg";
+            const c = who === "You" ? "user" : "ai";
+            const tag = em ? `<span class="etag">[${em}]</span>` : "";
+            d.innerHTML = `<span class="${c}">${who}:</span> <span class="text">${text.replace(/</g,"&lt;")}</span>${tag}`;
+            $("chat-log").appendChild(d);
+            $("chat-log").scrollTop = $("chat-log").scrollHeight;
+        }
+
+        $("chat-input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+        $("send-btn").addEventListener("click", sendChat);
 
         // ===== INIT =====
-        initLive2D().then(()=>connectWS());
+        initLive2D().then(() => connectWS());
     })();
     </script>
 </body>
