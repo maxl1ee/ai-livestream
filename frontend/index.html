@@ -380,13 +380,16 @@
 
         // ===== WEBSOCKET =====
         function connectWS() {
+            dlog("Connecting WS to " + WS_URL);
             ws = new WebSocket(WS_URL);
             ws.onopen = () => {
+                dlog("WS connected!");
                 $("status-dot").className="dot connected"; $("status-text").textContent="Live";
                 $("chat-input").disabled=false; $("send-btn").disabled=false;
             };
             ws.onmessage = e => {
                 const d = JSON.parse(e.data);
+                dlog("WS msg: type=" + d.type + " emotion=" + (d.emotion||"") + " text=" + (d.text||"").substring(0,30));
                 if (d.type==="thinking") {
                     $("status-dot").className="dot thinking"; $("status-text").textContent="Thinking...";
                     $("emotion-badge").textContent="🤔"; applyEmotion("thinking");
@@ -400,25 +403,41 @@
                     setTimeout(()=>$("speech-bubble").classList.remove("visible"),8000);
                     addMsg("AI",d.text,d.emotion);
                     applyEmotion(d.emotion||"neutral");
-                    if (d.audio) playAudio(d.audio);
+                    if (d.audio) {
+                        dlog("Playing audio (" + d.audio.length + " chars)");
+                        playAudio(d.audio);
+                    }
                 }
             };
             ws.onclose = () => {
+                dlog("WS disconnected, reconnecting in 3s...");
                 $("status-dot").className="dot"; $("status-text").textContent="Reconnecting...";
                 $("chat-input").disabled=true; $("send-btn").disabled=true;
                 setTimeout(connectWS,3000);
+            };
+            ws.onerror = (e) => {
+                dlog("WS error: " + e.type);
             };
         }
 
         // ===== CHAT =====
         function sendChat() {
             const t=$("chat-input").value.trim();
-            if (!t||!ws||ws.readyState!==1) return;
+            dlog("sendChat called, text='" + t + "', ws.readyState=" + (ws?.readyState));
+            if (!t||!ws||ws.readyState!==1) {
+                dlog("sendChat aborted: empty=" + !t + " ws=" + !!ws + " state=" + ws?.readyState);
+                return;
+            }
             ws.send(JSON.stringify({type:"chat",text:t}));
+            dlog("Sent to WS: " + t);
             addMsg("You",t);
             $("chat-input").value="";
             $("chat-input").disabled=true; $("send-btn").disabled=true;
-            const unlock=()=>{$("chat-input").disabled=false;$("send-btn").disabled=false;$("chat-input").focus();ws.removeEventListener("message",onR);};
+            const unlock=()=>{
+                $("chat-input").disabled=false;$("send-btn").disabled=false;$("chat-input").focus();
+                ws.removeEventListener("message",onR);
+                dlog("Input unlocked");
+            };
             const onR=e=>{if(JSON.parse(e.data).type==="response")unlock();};
             ws.addEventListener("message",onR);
             setTimeout(unlock,15000);
