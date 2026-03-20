@@ -221,8 +221,9 @@ async def websocket_endpoint(ws: WebSocket):
 # Serve frontend
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_dir):
-    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
-
     @app.get("/")
     async def root():
         return FileResponse(os.path.join(frontend_dir, "index.html"))
+
+    # Mount static AFTER the root route so / doesn't get shadowed
+    app.mount("/", StaticFiles(directory=frontend_dir), name="static")
