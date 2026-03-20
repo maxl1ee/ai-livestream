@@ -6,7 +6,6 @@
     <title>AI Livestream Host</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             background: #0a0a0f;
             color: #e0e0e0;
@@ -16,7 +15,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-
         #app {
             flex: 1;
             display: flex;
@@ -26,8 +24,6 @@
             width: 100%;
             padding: 16px;
         }
-
-        /* Avatar area */
         #avatar-container {
             flex: 1;
             position: relative;
@@ -36,153 +32,76 @@
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 300px;
         }
-
-        #live2d-canvas {
-            width: 100%;
-            height: 100%;
+        #live2d-canvas { width: 100%; height: 100%; }
+        #avatar-loading {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #888; font-size: 14px; text-align: center;
         }
-
-        /* Speech bubble */
+        #avatar-loading .spinner {
+            width: 40px; height: 40px; border: 3px solid #333;
+            border-top: 3px solid #60a5fa; border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         #speech-bubble {
-            position: absolute;
-            bottom: 16px;
-            left: 16px;
-            right: 16px;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 12px 16px;
-            font-size: 16px;
-            line-height: 1.5;
-            opacity: 0;
-            transform: translateY(10px);
+            position: absolute; bottom: 16px; left: 16px; right: 16px;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 12px 16px;
+            font-size: 16px; line-height: 1.5;
+            opacity: 0; transform: translateY(10px);
             transition: opacity 0.3s, transform 0.3s;
-            max-height: 120px;
-            overflow-y: auto;
+            max-height: 120px; overflow-y: auto;
         }
-
-        #speech-bubble.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* Status indicator */
+        #speech-bubble.visible { opacity: 1; transform: translateY(0); }
         #status {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #888;
+            position: absolute; top: 12px; left: 12px;
+            display: flex; align-items: center; gap: 6px;
+            font-size: 12px; color: #888;
         }
-
         #status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #444;
-            transition: background 0.3s;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #444; transition: background 0.3s;
         }
-
         #status-dot.connected { background: #4ade80; }
         #status-dot.thinking { background: #facc15; animation: pulse 1s infinite; }
         #status-dot.speaking { background: #60a5fa; animation: pulse 0.5s infinite; }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        /* Debug panel */
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         #debug {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            font-size: 11px;
-            color: #666;
-            text-align: right;
-            font-family: monospace;
+            position: absolute; top: 12px; right: 12px;
+            font-size: 11px; color: #666; text-align: right; font-family: monospace;
         }
-
         #debug div { margin-bottom: 2px; }
-
-        /* Emotion badge */
         #emotion-badge {
-            position: absolute;
-            top: 40px;
-            left: 12px;
-            font-size: 20px;
-            transition: all 0.3s;
+            position: absolute; top: 40px; left: 12px;
+            font-size: 20px; transition: all 0.3s;
         }
-
-        /* Chat area */
-        #chat-area {
-            margin-top: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
+        #chat-area { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
         #chat-log {
-            height: 120px;
-            overflow-y: auto;
-            padding: 8px 12px;
-            background: #111118;
-            border-radius: 12px;
-            font-size: 13px;
-            scrollbar-width: thin;
-            scrollbar-color: #333 transparent;
+            height: 120px; overflow-y: auto; padding: 8px 12px;
+            background: #111118; border-radius: 12px; font-size: 13px;
+            scrollbar-width: thin; scrollbar-color: #333 transparent;
         }
-
-        .chat-msg {
-            margin-bottom: 6px;
-            line-height: 1.4;
-        }
-
+        .chat-msg { margin-bottom: 6px; line-height: 1.4; }
         .chat-msg .user { color: #60a5fa; font-weight: 600; }
         .chat-msg .ai { color: #c084fc; font-weight: 600; }
         .chat-msg .text { color: #ccc; }
-        .chat-msg .emotion-tag {
-            font-size: 11px;
-            color: #888;
-            margin-left: 4px;
-        }
-
-        #chat-input-area {
-            display: flex;
-            gap: 8px;
-        }
-
+        .chat-msg .emotion-tag { font-size: 11px; color: #888; margin-left: 4px; }
+        #chat-input-area { display: flex; gap: 8px; }
         #chat-input {
-            flex: 1;
-            padding: 12px 16px;
-            background: #111118;
-            border: 1px solid #222;
-            border-radius: 12px;
-            color: #e0e0e0;
-            font-size: 15px;
-            outline: none;
+            flex: 1; padding: 12px 16px; background: #111118;
+            border: 1px solid #222; border-radius: 12px;
+            color: #e0e0e0; font-size: 15px; outline: none;
             transition: border-color 0.2s;
         }
-
         #chat-input:focus { border-color: #60a5fa; }
         #chat-input::placeholder { color: #555; }
         #chat-input:disabled { opacity: 0.5; }
-
         #send-btn {
-            padding: 12px 20px;
-            background: #60a5fa;
-            color: #000;
-            border: none;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
+            padding: 12px 20px; background: #60a5fa; color: #000;
+            border: none; border-radius: 12px; font-size: 15px;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
         }
-
         #send-btn:hover { background: #93c5fd; }
         #send-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
     </style>
@@ -191,79 +110,152 @@
     <div id="app">
         <div id="avatar-container">
             <canvas id="live2d-canvas"></canvas>
-
+            <div id="avatar-loading">
+                <div class="spinner"></div>
+                Loading avatar...
+            </div>
             <div id="status">
                 <div id="status-dot"></div>
                 <span id="status-text">Connecting...</span>
             </div>
-
             <div id="emotion-badge">😐</div>
-
             <div id="debug">
                 <div>LLM: <span id="dbg-llm">-</span>ms</div>
                 <div>TTS: <span id="dbg-tts">-</span>ms</div>
                 <div>FPS: <span id="dbg-fps">-</span></div>
             </div>
-
             <div id="speech-bubble"></div>
         </div>
-
         <div id="chat-area">
             <div id="chat-log"></div>
             <div id="chat-input-area">
-                <input type="text" id="chat-input" placeholder="Say something to the host..." autocomplete="off" />
-                <button id="send-btn">Send</button>
+                <input type="text" id="chat-input" placeholder="Say something to the host..." autocomplete="off" disabled />
+                <button id="send-btn" disabled>Send</button>
             </div>
         </div>
     </div>
 
-    <!-- Live2D dependencies -->
+    <!-- Live2D SDK -->
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.3.1/dist/index.min.js"></script>
 
     <script>
     (function() {
-        // ========== CONFIG ==========
         const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const WS_URL = `${wsProto}//${location.host}/ws`;
-        const MODEL_URL = "https://cdn.jsdelivr.net/gh/niconi233/Live2dDemo@main/model/hiyori/hiyori_pro_t10.model3.json";
+        const MODEL_URL = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/shizuku/shizuku.model.json";
 
         const EMOTION_EMOJI = {
-            neutral: "😐", happy: "😊", amused: "😂", surprised: "😲",
-            sad: "😢", thinking: "🤔", excited: "🤩", empathetic: "🥺", angry: "😤"
+            neutral:"😐", happy:"😊", amused:"😂", surprised:"😲",
+            sad:"😢", thinking:"🤔", excited:"🤩", empathetic:"🥺", angry:"😤"
         };
 
-        // ========== STATE ==========
-        let ws = null;
-        let model = null;
-        let pixiApp = null;
-        let currentExpression = {};
-        let targetExpression = {};
+        // Emotion -> Live2D parameter map (Shizuku model)
+        const EMOTION_PARAMS = {
+            neutral: {},
+            happy: {
+                "PARAM_MOUTH_FORM": 1.0,
+                "PARAM_EYE_L_SMILE": 0.7,
+                "PARAM_EYE_R_SMILE": 0.7,
+                "PARAM_BROW_L_Y": 0.3,
+                "PARAM_BROW_R_Y": 0.3
+            },
+            amused: {
+                "PARAM_MOUTH_FORM": 1.0,
+                "PARAM_MOUTH_OPEN_Y": 0.4,
+                "PARAM_EYE_L_SMILE": 0.9,
+                "PARAM_EYE_R_SMILE": 0.9,
+                "PARAM_ANGLE_Z": -5
+            },
+            surprised: {
+                "PARAM_BROW_L_Y": 1.0,
+                "PARAM_BROW_R_Y": 1.0,
+                "PARAM_EYE_L_OPEN": 1.3,
+                "PARAM_EYE_R_OPEN": 1.3,
+                "PARAM_MOUTH_OPEN_Y": 0.6,
+                "PARAM_MOUTH_FORM": -0.3
+            },
+            sad: {
+                "PARAM_BROW_L_Y": -0.8,
+                "PARAM_BROW_R_Y": -0.8,
+                "PARAM_MOUTH_FORM": -0.6,
+                "PARAM_EYE_L_OPEN": 0.6,
+                "PARAM_EYE_R_OPEN": 0.6,
+                "PARAM_ANGLE_Y": -5
+            },
+            thinking: {
+                "PARAM_BROW_L_Y": -0.3,
+                "PARAM_BROW_R_Y": 0.5,
+                "PARAM_EYE_L_OPEN": 0.7,
+                "PARAM_EYE_R_OPEN": 0.8,
+                "PARAM_ANGLE_X": 15,
+                "PARAM_ANGLE_Y": 5,
+                "PARAM_MOUTH_FORM": 0.1
+            },
+            excited: {
+                "PARAM_MOUTH_FORM": 1.0,
+                "PARAM_MOUTH_OPEN_Y": 0.5,
+                "PARAM_EYE_L_SMILE": 1.0,
+                "PARAM_EYE_R_SMILE": 1.0,
+                "PARAM_BROW_L_Y": 0.8,
+                "PARAM_BROW_R_Y": 0.8,
+                "PARAM_BODY_ANGLE_X": 3
+            },
+            empathetic: {
+                "PARAM_BROW_L_Y": -0.5,
+                "PARAM_BROW_R_Y": -0.3,
+                "PARAM_MOUTH_FORM": 0.3,
+                "PARAM_EYE_L_OPEN": 0.7,
+                "PARAM_EYE_R_OPEN": 0.7,
+                "PARAM_ANGLE_X": -5
+            },
+            angry: {
+                "PARAM_BROW_L_Y": -1.0,
+                "PARAM_BROW_R_Y": -1.0,
+                "PARAM_MOUTH_FORM": -0.8,
+                "PARAM_EYE_L_OPEN": 0.9,
+                "PARAM_EYE_R_OPEN": 0.9,
+                "PARAM_ANGLE_X": -3
+            }
+        };
+
+        // All controllable params and their defaults
+        const ALL_PARAMS = [
+            "PARAM_MOUTH_FORM","PARAM_MOUTH_OPEN_Y",
+            "PARAM_EYE_L_OPEN","PARAM_EYE_R_OPEN",
+            "PARAM_EYE_L_SMILE","PARAM_EYE_R_SMILE",
+            "PARAM_BROW_L_Y","PARAM_BROW_R_Y",
+            "PARAM_ANGLE_X","PARAM_ANGLE_Y","PARAM_ANGLE_Z",
+            "PARAM_BODY_ANGLE_X"
+        ];
+        const DEFAULTS = {
+            "PARAM_MOUTH_FORM": 0, "PARAM_MOUTH_OPEN_Y": 0,
+            "PARAM_EYE_L_OPEN": 1, "PARAM_EYE_R_OPEN": 1,
+            "PARAM_EYE_L_SMILE": 0, "PARAM_EYE_R_SMILE": 0,
+            "PARAM_BROW_L_Y": 0, "PARAM_BROW_R_Y": 0,
+            "PARAM_ANGLE_X": 0, "PARAM_ANGLE_Y": 0, "PARAM_ANGLE_Z": 0,
+            "PARAM_BODY_ANGLE_X": 0
+        };
+
+        let ws = null, model = null, pixiApp = null;
+        let currentParams = {...DEFAULTS};
+        let targetParams = {...DEFAULTS};
         let isPlaying = false;
-        let audioContext = null;
-        let analyser = null;
-        let audioQueue = [];
-        let fpsFrames = 0;
-        let fpsTime = performance.now();
+        let audioContext = null, analyser = null;
+        let fpsFrames = 0, fpsTime = performance.now();
+        let blinkTimer = 3 + Math.random() * 4;
+        let blinkPhase = -1, blinkProgress = 0;
+        let breathTimer = 0, swayTimer = 0;
+        let currentEmotion = "neutral";
 
-        // ========== DOM ==========
-        const canvas = document.getElementById("live2d-canvas");
-        const speechBubble = document.getElementById("speech-bubble");
-        const statusDot = document.getElementById("status-dot");
-        const statusText = document.getElementById("status-text");
-        const emotionBadge = document.getElementById("emotion-badge");
-        const chatLog = document.getElementById("chat-log");
-        const chatInput = document.getElementById("chat-input");
-        const sendBtn = document.getElementById("send-btn");
-        const dbgLlm = document.getElementById("dbg-llm");
-        const dbgTts = document.getElementById("dbg-tts");
-        const dbgFps = document.getElementById("dbg-fps");
+        const $ = id => document.getElementById(id);
+        const canvas = $("live2d-canvas");
+        const loadingEl = $("avatar-loading");
 
-        // ========== LIVE2D SETUP ==========
+        // ===== LIVE2D =====
         async function initLive2D() {
-            const container = document.getElementById("avatar-container");
-
+            const container = $("avatar-container");
             pixiApp = new PIXI.Application({
                 view: canvas,
                 resizeTo: container,
@@ -273,133 +265,104 @@
 
             try {
                 model = await PIXI.live2d.Live2DModel.from(MODEL_URL);
-
-                // Scale and position
                 const scale = Math.min(
-                    container.clientWidth / model.width * 0.6,
-                    container.clientHeight / model.height * 0.8
+                    container.clientWidth / model.width * 0.7,
+                    container.clientHeight / model.height * 0.9
                 );
                 model.scale.set(scale);
                 model.x = container.clientWidth / 2 - (model.width * scale) / 2;
-                model.y = container.clientHeight - (model.height * scale) + 20;
-
+                model.y = container.clientHeight - (model.height * scale) + 30;
                 pixiApp.stage.addChild(model);
-                console.log("Live2D model loaded");
+                loadingEl.style.display = "none";
+                console.log("Live2D model loaded successfully");
 
-                // Init current expression from model
-                if (model.internalModel && model.internalModel.coreModel) {
+                // Log available params for debugging
+                if (model.internalModel?.coreModel) {
                     const core = model.internalModel.coreModel;
+                    const params = [];
                     for (let i = 0; i < core.getParameterCount(); i++) {
-                        const id = core.getParameterId(i);
-                        currentExpression[id] = core.getParameterValueByIndex(i);
+                        params.push(core.getParameterId(i));
                     }
+                    console.log("Model params:", params);
                 }
-            } catch (e) {
-                console.error("Failed to load Live2D model:", e);
-                document.getElementById("avatar-container").innerHTML +=
-                    '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#f66;">Failed to load avatar model.<br>Check console for details.</div>';
+            } catch(e) {
+                console.error("Live2D load error:", e);
+                loadingEl.innerHTML = '<div style="color:#f66">Failed to load avatar.<br>' + e.message + '</div>';
             }
         }
 
-        // ========== EXPRESSION CONTROL ==========
-        function setTargetExpression(params) {
-            targetExpression = { ...targetExpression, ...params };
-        }
-
-        function updateExpression() {
-            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
-
+        // ===== SET PARAM =====
+        function setParam(name, value) {
+            if (!model?.internalModel?.coreModel) return;
             const core = model.internalModel.coreModel;
-            const lerpFactor = 0.08; // smooth transition speed
-
-            for (const [param, target] of Object.entries(targetExpression)) {
-                const current = currentExpression[param] || 0;
-                const newVal = current + (target - current) * lerpFactor;
-                currentExpression[param] = newVal;
-
-                // Find param index and set it
-                for (let i = 0; i < core.getParameterCount(); i++) {
-                    if (core.getParameterId(i) === param) {
-                        core.setParameterValueByIndex(i, newVal);
-                        break;
-                    }
+            for (let i = 0; i < core.getParameterCount(); i++) {
+                if (core.getParameterId(i) === name) {
+                    core.setParameterValueByIndex(i, value);
+                    return;
                 }
             }
         }
 
-        // ========== IDLE ANIMATIONS ==========
-        let blinkTimer = 0;
-        let breathTimer = 0;
-        let swayTimer = 0;
+        // ===== EXPRESSION CONTROL =====
+        function applyEmotion(emotion) {
+            currentEmotion = emotion;
+            const params = EMOTION_PARAMS[emotion] || {};
+            // Start from defaults, overlay emotion params
+            targetParams = {...DEFAULTS, ...params};
 
+            // Also try built-in expressions
+            if (model?.internalModel) {
+                const exprMap = {happy:"f02", amused:"f03", surprised:"f04", sad:"f01"};
+                if (exprMap[emotion]) {
+                    try { model.expression(exprMap[emotion]); } catch(e) {}
+                }
+            }
+        }
+
+        function updateExpressions(dt) {
+            if (!model?.internalModel?.coreModel) return;
+            const lerp = 1 - Math.pow(0.05, dt); // smooth ~60fps
+            for (const p of ALL_PARAMS) {
+                const target = targetParams[p] ?? DEFAULTS[p];
+                const cur = currentParams[p] ?? DEFAULTS[p];
+                currentParams[p] = cur + (target - cur) * lerp;
+                setParam(p, currentParams[p]);
+            }
+        }
+
+        // ===== IDLE =====
         function updateIdle(dt) {
-            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
-            const core = model.internalModel.coreModel;
+            if (!model?.internalModel?.coreModel) return;
 
             // Breathing
             breathTimer += dt * 2.5;
-            const breathVal = Math.sin(breathTimer) * 0.02;
-            // Subtle body movement with breath
-            for (let i = 0; i < core.getParameterCount(); i++) {
-                if (core.getParameterId(i) === "ParamBreath") {
-                    core.setParameterValueByIndex(i, Math.sin(breathTimer) * 0.5 + 0.5);
-                }
-            }
+            setParam("PARAM_BREATH", Math.sin(breathTimer) * 0.5 + 0.5);
 
-            // Random blinking
+            // Blinking
             blinkTimer -= dt;
-            if (blinkTimer <= 0) {
-                // Trigger blink
-                triggerBlink(core);
-                blinkTimer = 3 + Math.random() * 4; // 3-7 seconds
+            if (blinkTimer <= 0 && blinkPhase < 0) {
+                blinkPhase = 0; blinkProgress = 0;
+                blinkTimer = 2.5 + Math.random() * 4;
+            }
+            if (blinkPhase >= 0) {
+                blinkProgress += dt * 10;
+                let eyeVal = 1;
+                if (blinkProgress < 1) eyeVal = 1 - blinkProgress;
+                else if (blinkProgress < 2) eyeVal = blinkProgress - 1;
+                else { blinkPhase = -1; eyeVal = 1; }
+                setParam("PARAM_EYE_L_OPEN", eyeVal * (currentParams["PARAM_EYE_L_OPEN"] ?? 1));
+                setParam("PARAM_EYE_R_OPEN", eyeVal * (currentParams["PARAM_EYE_R_OPEN"] ?? 1));
             }
 
-            // Subtle head sway
-            swayTimer += dt * 0.5;
-            const swayX = Math.sin(swayTimer) * 2;
-            const swayY = Math.sin(swayTimer * 0.7) * 1;
-            if (!targetExpression["ParamAngleX"]) {
-                for (let i = 0; i < core.getParameterCount(); i++) {
-                    const id = core.getParameterId(i);
-                    if (id === "ParamAngleX") core.setParameterValueByIndex(i, (currentExpression[id] || 0) + swayX);
-                    if (id === "ParamAngleZ") core.setParameterValueByIndex(i, (currentExpression[id] || 0) + swayY);
-                }
-            }
-        }
-
-        let blinkPhase = -1;
-        let blinkProgress = 0;
-
-        function triggerBlink(core) {
-            blinkPhase = 0;
-            blinkProgress = 0;
-        }
-
-        function updateBlink(dt) {
-            if (blinkPhase < 0 || !model?.internalModel?.coreModel) return;
-            const core = model.internalModel.coreModel;
-
-            blinkProgress += dt * 8; // blink speed
-
-            let eyeOpen;
-            if (blinkProgress < 1) {
-                eyeOpen = 1.0 - blinkProgress; // closing
-            } else if (blinkProgress < 2) {
-                eyeOpen = blinkProgress - 1.0; // opening
-            } else {
-                blinkPhase = -1;
-                return;
-            }
-
-            for (let i = 0; i < core.getParameterCount(); i++) {
-                const id = core.getParameterId(i);
-                if (id === "ParamEyeLOpen" || id === "ParamEyeROpen") {
-                    core.setParameterValueByIndex(i, eyeOpen);
-                }
+            // Head sway (only when not in a strong emotion)
+            if (currentEmotion === "neutral") {
+                swayTimer += dt * 0.4;
+                setParam("PARAM_ANGLE_X", currentParams["PARAM_ANGLE_X"] + Math.sin(swayTimer) * 3);
+                setParam("PARAM_ANGLE_Z", currentParams["PARAM_ANGLE_Z"] + Math.sin(swayTimer * 0.7) * 2);
             }
         }
 
-        // ========== AUDIO PLAYBACK + LIP SYNC ==========
+        // ===== LIP SYNC =====
         function initAudio() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -411,210 +374,141 @@
 
         async function playAudio(base64Audio) {
             initAudio();
+            if (audioContext.state === 'suspended') await audioContext.resume();
             isPlaying = true;
-            statusDot.className = "speaking";
-            statusText.textContent = "Speaking";
+            $("status-dot").className = "speaking";
+            $("status-text").textContent = "Speaking";
 
             try {
-                const binaryStr = atob(base64Audio);
-                const bytes = new Uint8Array(binaryStr.length);
-                for (let i = 0; i < binaryStr.length; i++) {
-                    bytes[i] = binaryStr.charCodeAt(i);
-                }
-
-                const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-                const source = audioContext.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(analyser);
-                source.start(0);
-
-                source.onended = () => {
+                const bin = atob(base64Audio);
+                const buf = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+                const audioBuf = await audioContext.decodeAudioData(buf.buffer);
+                const src = audioContext.createBufferSource();
+                src.buffer = audioBuf;
+                src.connect(analyser);
+                src.start(0);
+                src.onended = () => {
                     isPlaying = false;
-                    statusDot.className = "connected";
-                    statusText.textContent = "Live";
-                    // Reset mouth
-                    targetExpression["ParamMouthOpenY"] = 0;
+                    $("status-dot").className = "connected";
+                    $("status-text").textContent = "Live";
+                    targetParams["PARAM_MOUTH_OPEN_Y"] = 0;
                 };
-            } catch (e) {
-                console.error("Audio playback error:", e);
+            } catch(e) {
+                console.error("Audio error:", e);
                 isPlaying = false;
-                statusDot.className = "connected";
-                statusText.textContent = "Live";
+                $("status-dot").className = "connected";
+                $("status-text").textContent = "Live";
             }
         }
 
         function updateLipSync() {
-            if (!isPlaying || !analyser || !model?.internalModel?.coreModel) return;
-            const core = model.internalModel.coreModel;
-
+            if (!isPlaying || !analyser) return;
             const data = new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteFrequencyData(data);
-
-            // Calculate amplitude from low-mid frequencies (voice range)
             let sum = 0;
-            for (let i = 2; i < 30; i++) {
-                sum += data[i];
-            }
-            const avg = sum / 28;
-            const mouthOpen = Math.min(1.0, avg / 120); // normalize
-
-            // Apply to mouth parameter
-            for (let i = 0; i < core.getParameterCount(); i++) {
-                if (core.getParameterId(i) === "ParamMouthOpenY") {
-                    core.setParameterValueByIndex(i, mouthOpen);
-                }
-            }
+            for (let i = 2; i < 30; i++) sum += data[i];
+            const mouthOpen = Math.min(1.0, (sum / 28) / 100);
+            setParam("PARAM_MOUTH_OPEN_Y", mouthOpen);
         }
 
-        // ========== RENDER LOOP ==========
-        function startRenderLoop() {
-            let lastTime = performance.now();
-
+        // ===== RENDER LOOP =====
+        function startLoop() {
+            let last = performance.now();
             function frame(now) {
-                const dt = (now - lastTime) / 1000;
-                lastTime = now;
-
-                updateExpression();
+                const dt = Math.min((now - last) / 1000, 0.1);
+                last = now;
+                updateExpressions(dt);
                 updateIdle(dt);
-                updateBlink(dt);
                 updateLipSync();
-
-                // FPS counter
                 fpsFrames++;
                 if (now - fpsTime >= 1000) {
-                    dbgFps.textContent = fpsFrames;
-                    fpsFrames = 0;
-                    fpsTime = now;
+                    $("dbg-fps").textContent = fpsFrames;
+                    fpsFrames = 0; fpsTime = now;
                 }
-
                 requestAnimationFrame(frame);
             }
             requestAnimationFrame(frame);
         }
 
-        // ========== WEBSOCKET ==========
+        // ===== WEBSOCKET =====
         function connectWS() {
             ws = new WebSocket(WS_URL);
-
             ws.onopen = () => {
-                statusDot.className = "connected";
-                statusText.textContent = "Live";
-                chatInput.disabled = false;
-                sendBtn.disabled = false;
-                console.log("WebSocket connected");
+                $("status-dot").className = "connected";
+                $("status-text").textContent = "Live";
+                $("chat-input").disabled = false;
+                $("send-btn").disabled = false;
             };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
                 if (data.type === "thinking") {
-                    statusDot.className = "thinking";
-                    statusText.textContent = "Thinking...";
-                    emotionBadge.textContent = EMOTION_EMOJI["thinking"];
-                    setTargetExpression(data.expression || {
-                        "ParamBrowLY": -0.3, "ParamBrowRY": 0.5,
-                        "ParamAngleX": 10, "ParamAngleY": 5
-                    });
+                    $("status-dot").className = "thinking";
+                    $("status-text").textContent = "Thinking...";
+                    $("emotion-badge").textContent = "🤔";
+                    applyEmotion("thinking");
                 }
-
                 if (data.type === "response") {
-                    // Update UI
-                    emotionBadge.textContent = EMOTION_EMOJI[data.emotion] || "😐";
-                    dbgLlm.textContent = data.latency?.llm_ms || "-";
-                    dbgTts.textContent = data.latency?.tts_ms || "-";
-
-                    // Speech bubble
-                    speechBubble.textContent = data.text;
-                    speechBubble.classList.add("visible");
-                    setTimeout(() => speechBubble.classList.remove("visible"), 8000);
-
-                    // Chat log
-                    addChatMessage("AI", data.text, data.emotion);
-
-                    // Expression
-                    if (data.expression) {
-                        setTargetExpression(data.expression);
-                    }
-
-                    // Play audio
-                    if (data.audio) {
-                        playAudio(data.audio);
-                    }
+                    $("emotion-badge").textContent = EMOTION_EMOJI[data.emotion] || "😐";
+                    $("dbg-llm").textContent = data.latency?.llm_ms || "-";
+                    $("dbg-tts").textContent = data.latency?.tts_ms || "-";
+                    $("speech-bubble").textContent = data.text;
+                    $("speech-bubble").classList.add("visible");
+                    setTimeout(() => $("speech-bubble").classList.remove("visible"), 8000);
+                    addMsg("AI", data.text, data.emotion);
+                    applyEmotion(data.emotion || "neutral");
+                    if (data.audio) playAudio(data.audio);
                 }
             };
-
             ws.onclose = () => {
-                statusDot.className = "";
-                statusText.textContent = "Disconnected";
-                chatInput.disabled = true;
-                sendBtn.disabled = true;
-                console.log("WebSocket disconnected, reconnecting in 3s...");
+                $("status-dot").className = "";
+                $("status-text").textContent = "Reconnecting...";
+                $("chat-input").disabled = true;
+                $("send-btn").disabled = true;
                 setTimeout(connectWS, 3000);
             };
-
-            ws.onerror = (e) => {
-                console.error("WebSocket error:", e);
-            };
+            ws.onerror = () => {};
         }
 
-        // ========== CHAT ==========
+        // ===== CHAT =====
         function sendChat() {
-            const text = chatInput.value.trim();
-            if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-            ws.send(JSON.stringify({ type: "chat", text: text }));
-            addChatMessage("You", text);
-            chatInput.value = "";
-            chatInput.disabled = true;
-            sendBtn.disabled = true;
-
-            // Re-enable after response
-            const enableInput = () => {
-                chatInput.disabled = false;
-                sendBtn.disabled = false;
-                chatInput.focus();
-                ws.removeEventListener("message", onResponse);
+            const text = $("chat-input").value.trim();
+            if (!text || !ws || ws.readyState !== 1) return;
+            ws.send(JSON.stringify({type:"chat", text}));
+            addMsg("You", text);
+            $("chat-input").value = "";
+            $("chat-input").disabled = true;
+            $("send-btn").disabled = true;
+            const unlock = () => {
+                $("chat-input").disabled = false;
+                $("send-btn").disabled = false;
+                $("chat-input").focus();
+                ws.removeEventListener("message", onResp);
             };
-            const onResponse = (e) => {
-                const d = JSON.parse(e.data);
-                if (d.type === "response") enableInput();
-            };
-            ws.addEventListener("message", onResponse);
-            // Timeout fallback
-            setTimeout(enableInput, 15000);
+            const onResp = (e) => { if (JSON.parse(e.data).type === "response") unlock(); };
+            ws.addEventListener("message", onResp);
+            setTimeout(unlock, 15000);
         }
 
-        function addChatMessage(sender, text, emotion) {
-            const div = document.createElement("div");
-            div.className = "chat-msg";
-            const cls = sender === "You" ? "user" : "ai";
-            const emotionTag = emotion ? `<span class="emotion-tag">[${emotion}]</span>` : "";
-            div.innerHTML = `<span class="${cls}">${sender}:</span> <span class="text">${escapeHtml(text)}</span>${emotionTag}`;
-            chatLog.appendChild(div);
-            chatLog.scrollTop = chatLog.scrollHeight;
+        function addMsg(who, text, emotion) {
+            const d = document.createElement("div");
+            d.className = "chat-msg";
+            const cls = who === "You" ? "user" : "ai";
+            const tag = emotion ? `<span class="emotion-tag">[${emotion}]</span>` : "";
+            d.innerHTML = `<span class="${cls}">${who}:</span> <span class="text">${text.replace(/</g,"&lt;")}</span>${tag}`;
+            $("chat-log").appendChild(d);
+            $("chat-log").scrollTop = $("chat-log").scrollHeight;
         }
 
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
+        $("chat-input").addEventListener("keydown", e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();} });
+        $("send-btn").addEventListener("click", sendChat);
 
-        // ========== EVENT LISTENERS ==========
-        chatInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendChat();
-            }
-        });
-        sendBtn.addEventListener("click", sendChat);
-
-        // ========== INIT ==========
+        // ===== INIT =====
         async function init() {
             await initLive2D();
-            startRenderLoop();
+            startLoop();
             connectWS();
-            chatInput.focus();
         }
-
         init();
     })();
     </script>
